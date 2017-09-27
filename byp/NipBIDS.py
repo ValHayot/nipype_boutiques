@@ -194,7 +194,7 @@ def run_analysis(analysis_level, bids_dataset, boutiques_descriptor,
 
     def bosh_exec(invocation_file):
         import subprocess
-        run_command = "type bosh; bosh {0} -i {1} -e -d -v {2}:{2}".format(boutiques_descriptor, invocation_file, working_dir)
+        run_command = "type bosh; bosh {0} -i {1} -e -v {2}:{2}".format(boutiques_descriptor, invocation_file, working_dir)
         result = None
         try:
             log = subprocess.check_output(run_command, shell=True, stderr=subprocess.STDOUT)
