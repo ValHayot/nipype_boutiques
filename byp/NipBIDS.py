@@ -57,8 +57,7 @@ class NipBIDS(object):
                                       iterfield=['participant_label'],
                                       name='run_participant_analysis')
 
-            wf.add_nodes([participants])
-            
+            wf.add_nodes([participants])            
             wf.connect(participants, 'out', p_analysis, 'participant_label')
             
             p_analysis.inputs.analysis_level = 'participant'
@@ -73,24 +72,27 @@ class NipBIDS(object):
             #for result in mapped.collect():
             #    self.pretty_print(result)
 
-        # Group analysis
-        if self.do_group_analysis:
-            groups = Node(Function(input_names=['analysis_level', 'bids_dataset', 
-                                'boutiques_descriptor', 'output_dir', 'working_dir'],
-                                output_names=['g_result'],
-                                function=run_analysis),
-                                name='run_group_analysis')
+            # Group analysis
+            if self.do_group_analysis:
+                groups = Node(Function(input_names=['analysis_level', 'bids_dataset', 
+                                    'boutiques_descriptor', 'output_dir', 'working_dir', 'dummy_token'],
+                                    output_names=['g_result'],
+                                    function=run_analysis),
+                                    name='run_group_analysis')
 
-            groups.inputs.analysis_level = 'group'
-            groups.inputs.bids_dataset = self.bids_dataset
-            groups.inputs.boutiques_descriptor = self.boutiques_descriptor
-            groups.inputs.output_dir = self.output_dir
-            groups.inputs.working_dir = os.getcwd()
+                groups.inputs.analysis_level = 'group'
+                groups.inputs.bids_dataset = self.bids_dataset
+                groups.inputs.boutiques_descriptor = self.boutiques_descriptor
+                groups.inputs.output_dir = self.output_dir
+                groups.inputs.working_dir = os.getcwd()
 
-            wf.add_nodes([groups])
-            #group_result = run_group_analysis()
-            #self.pretty_print(group_result)
+            
+                wf.connect(p_analysis, 'result', groups, 'dummy_token')
+                #group_result = run_group_analysis()
+                #self.pretty_print(group_result)
 
+            
+            #wf.add_nodes([participants])
         eg = wf.run()
         print(eg.nodes()[1].result.outputs)
         print(eg.nodes()[2].result.outputs)
@@ -161,7 +163,7 @@ class NipBIDS(object):
         return filename
 
 def run_analysis(analysis_level, bids_dataset, boutiques_descriptor, 
-            working_dir, output_dir, participant_label=None):
+            working_dir, output_dir, dummy_token=None, participant_label=None):
     import os
 
     def write_invocation_file(invocation_file):
@@ -184,6 +186,7 @@ def run_analysis(analysis_level, bids_dataset, boutiques_descriptor,
 
         # Writes invocation
         with open(invocation_file,"w") as f:
+            print(invocation_file)
             f.write(json_invocation)
         try:
             os.mkdir(output_dir)
@@ -195,7 +198,7 @@ def run_analysis(analysis_level, bids_dataset, boutiques_descriptor,
 
     def bosh_exec(invocation_file):
         import subprocess
-        run_command = "type bosh; bosh {0} -i {1} -e -d -v {2}:{2}".format(boutiques_descriptor, invocation_file, working_dir)
+        run_command = "bosh {0} -i {1} -e -d -v {2}:{2}".format(boutiques_descriptor, invocation_file, working_dir)
         result = None
         try:
             log = subprocess.check_output(run_command, shell=True, stderr=subprocess.STDOUT)
@@ -206,13 +209,13 @@ def run_analysis(analysis_level, bids_dataset, boutiques_descriptor,
 
 
     if analysis_level == "group":
-        invocation_file = "./invocation-group.json"
+        invocation_file = "{0}/invocation-group.json".format(working_dir)
         write_invocation_file(invocation_file)
         exec_result = bosh_exec(invocation_file)
         os.remove(invocation_file)
         return ("group", exec_result)
     else:
-        invocation_file = "./invocation-{0}.json".format(participant_label)
+        invocation_file = "{0}/invocation-{1}.json".format(working_dir, participant_label)
         write_invocation_file(invocation_file)
 
         exec_result = bosh_exec(invocation_file)
