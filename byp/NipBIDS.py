@@ -1,6 +1,6 @@
 from nipype import Workflow, MapNode, Node, Function
 from nipype.interfaces.utility import IdentityInterface, Function
-import os, json
+import os, json, time
 
 class NipBIDS(object):
 
@@ -33,13 +33,11 @@ class NipBIDS(object):
         wf = Workflow('bapp')
         wf.base_dir = os.getcwd()
 
+        # group analysis can be executed if participant analysis is skipped
+        p_analysis = None
+
         # Participant analysis
         if self.do_participant_analysis:
-
-            # Participant analysis (done for all apps)
-            # mapped = rdd.filter(lambda x: self.get_participant_from_fn(x[0]) not in self.skipped_participants)\
-            #            .map(lambda x: self.run_participant_analysis(self.get_participant_from_fn(x[0]),
-            #                                                         x[1]))
 
             participants = Node(Function(input_names=['data_dir', 'skipped'],
                                             output_names=['out'],
@@ -72,30 +70,34 @@ class NipBIDS(object):
             #for result in mapped.collect():
             #    self.pretty_print(result)
 
-            # Group analysis
-            if self.do_group_analysis:
-                groups = Node(Function(input_names=['analysis_level', 'bids_dataset', 
-                                    'boutiques_descriptor', 'output_dir', 'working_dir', 'dummy_token'],
-                                    output_names=['g_result'],
-                                    function=run_analysis),
-                                    name='run_group_analysis')
+        # Group analysis
+        if self.do_group_analysis:
+            groups = Node(Function(input_names=['analysis_level', 'bids_dataset', 
+                                'boutiques_descriptor', 'output_dir', 'working_dir', 'dummy_token'],
+                                output_names=['g_result'],
+                                function=run_analysis),
+                                name='run_group_analysis')
 
-                groups.inputs.analysis_level = 'group'
-                groups.inputs.bids_dataset = self.bids_dataset
-                groups.inputs.boutiques_descriptor = self.boutiques_descriptor
-                groups.inputs.output_dir = self.output_dir
-                groups.inputs.working_dir = os.getcwd()
+            groups.inputs.analysis_level = 'group'
+            groups.inputs.bids_dataset = self.bids_dataset
+            groups.inputs.boutiques_descriptor = self.boutiques_descriptor
+            groups.inputs.output_dir = self.output_dir
+            groups.inputs.working_dir = os.getcwd()
 
-            
+        
+            if p_analysis is not None:
                 wf.connect(p_analysis, 'result', groups, 'dummy_token')
+            else:
+                wf.add_nodes([groups])
                 #group_result = run_group_analysis()
                 #self.pretty_print(group_result)
 
             
-            #wf.add_nodes([participants])
         eg = wf.run()
-        print(eg.nodes()[1].result.outputs)
-        print(eg.nodes()[2].result.outputs)
+        
+        for res in eg.nodes()[1].result.outputs.result:
+            self.pretty_print(res)
+        self.pretty_print(eg.nodes()[2].result.outputs.g_result)
             
     def supports_analysis_level(self,level):
         desc = json.load(open(self.boutiques_descriptor))
@@ -128,7 +130,7 @@ class NipBIDS(object):
         timestamp = str(int(time.time() * 1000))
         filename = "{0}.{1}.log".format(timestamp, label)
         with open(filename,"w") as f:
-            f.write(log)
+            f.write(str(log, "utf-8"))
         print(" [ {3} ({0}) ] {1} - {2}".format(returncode, label, filename, status))
 
 
@@ -158,12 +160,9 @@ class NipBIDS(object):
         else:
             return open(arg, 'r')
 
-    def get_participant_from_fn(self,filename):
-        if filename.endswith(".tar"): return filename.split('-')[-1][:-4]
-        return filename
 
 def run_analysis(analysis_level, bids_dataset, boutiques_descriptor, 
-            working_dir, output_dir, dummy_token=None, participant_label=None):
+            working_dir, output_dir, participant_label=None, dummy_token=None):
     import os
 
     def write_invocation_file(invocation_file):
@@ -173,14 +172,13 @@ def run_analysis(analysis_level, bids_dataset, boutiques_descriptor,
 
         # Creates invocation object
         invocation = {}
-        invocation["inputs"] = [ ]
-        invocation["inputs"].append({"bids_dir": bids_dataset})
-        invocation["inputs"].append({"output_dir_name": output_dir})
+        invocation["bids_dir"] = bids_dataset
+        invocation["output_dir_name"] = output_dir
         if analysis_level == "participant":
-            invocation["inputs"].append({"analysis_level": "participant"}) 
-            invocation["inputs"].append({"participant_label": participant_label})
+            invocation["analysis_level"] = "participant"
+            invocation["participant_label"] = participant_label
         elif analysis_level == "group":
-            invocation["inputs"].append({"analysis_level": "group"})
+            invocation["analysis_level"] = "group"
 
         json_invocation = json.dumps(invocation)
 
@@ -198,7 +196,7 @@ def run_analysis(analysis_level, bids_dataset, boutiques_descriptor,
 
     def bosh_exec(invocation_file):
         import subprocess
-        run_command = "bosh {0} -i {1} -e -d -v {2}:{2}".format(boutiques_descriptor, invocation_file, working_dir)
+        run_command = "bosh {0} -i {1} -e -v {2}:{2}".format(boutiques_descriptor, invocation_file, working_dir)
         result = None
         try:
             log = subprocess.check_output(run_command, shell=True, stderr=subprocess.STDOUT)
@@ -232,4 +230,3 @@ def get_participants(data_dir, skipped):
     participants = layout.get_subjects()    
     
     return list(set(participants) - set(skipped))
-    #return [f.filename for f in layout.get(subject='0[{0}]'.format(''.join(participants).replace('0', '')))]
