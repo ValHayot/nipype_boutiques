@@ -48,8 +48,8 @@ class NipBIDS(Sim):
 
 
 
-            p_analysis = MapNode(Function(input_names=['analysis_level', 'participant_label', 
-                                        'boutiques_descriptor', 'bids_dataset', 'output_dir', 'working_dir'],
+            p_analysis = MapNode(Function(input_names=['nib', 'analysis_level', 
+                                      'participant_label','working_dir'],
                                       output_names=['result'],
                                       function=run_analysis),
                                       iterfield=['participant_label'],
@@ -59,24 +59,20 @@ class NipBIDS(Sim):
             wf.connect(participants, 'out', p_analysis, 'participant_label')
             
             p_analysis.inputs.analysis_level = 'participant'
-            p_analysis.inputs.boutiques_descriptor = self.boutiques_descriptor
-            p_analysis.inputs.bids_dataset = self.input_path
-            p_analysis.inputs.output_dir = self.output_dir
+            p_analysis.inputs.nib = self
             p_analysis.inputs.working_dir = os.getcwd()
 
 
         # Group analysis
         if self.do_group_analysis:
-            groups = Node(Function(input_names=['analysis_level', 'bids_dataset', 
-                                'boutiques_descriptor', 'output_dir', 'working_dir', 'dummy_token'],
+            groups = Node(Function(input_names=['nib', 'analysis_level', 'bids_dataset', 
+                                'working_dir', 'dummy_token'],
                                 output_names=['g_result'],
                                 function=run_analysis),
                                 name='run_group_analysis')
 
             groups.inputs.analysis_level = 'group'
-            groups.inputs.bids_dataset = self.input_path
-            groups.inputs.boutiques_descriptor = self.boutiques_descriptor
-            groups.inputs.output_dir = self.output_dir
+            groups.inputs.nib = self
             groups.inputs.working_dir = os.getcwd()
 
         
@@ -108,40 +104,9 @@ class NipBIDS(Sim):
         assert(analysis_level_input.get("value-choices")),"Input 'analysis_level' of BIDS app descriptor has no 'value-choices' property"   
         return level in analysis_level_input["value-choices"]
 
-        
-    def get_bids_dataset(self, data, participant_label):
-
-        filename = 'sub-{0}.tar'.format(participant_label)
-        tmp_dataset = 'temp_dataset'    
-        foldername = os.path.join(tmp_dataset, 'sub-{0}'.format(participant_label))
-
-        # Save participant byte stream to disk
-        with open(filename, 'w') as f:
-            f.write(data)
-
-        # Now extract data from tar
-        tar = tarfile.open(filename)
-        tar.extractall(path=foldername)
-        tar.close()
-
-        os.remove(filename)
-
-        return os.path.join(tmp_dataset, os.path.abspath(self.bids_dataset))
-
-
-    def is_valid_file(parser, arg):
-        if not os.path.exists(arg):
-            parser.error("The file %s does not exist!" % arg)
-        else:
-            return open(arg, 'r')
-
-
-def run_analysis(analysis_level, bids_dataset, boutiques_descriptor, 
-            working_dir, output_dir, participant_label=None, dummy_token=None):
+def run_analysis(nib, analysis_level, working_dir, participant_label=None, dummy_token=None):
     import os
-    from Sim import Sim
 
-    sim = Sim(boutiques_descriptor, bids_dataset, output_dir)
     out_key = None
 
     if analysis_level == "group":
@@ -151,8 +116,8 @@ def run_analysis(analysis_level, bids_dataset, boutiques_descriptor,
         invocation_file = "./invocation-{0}.json".format(participant_label)
         out_key = "participant_label"
 
-    sim.write_invocation_file(analysis_level, participant_label, invocation_file)
-    exec_result = sim.bosh_exec(invocation_file, working_dir)
+    nib.write_invocation_file(analysis_level, participant_label, invocation_file)
+    exec_result = nib.bosh_exec(invocation_file, working_dir)
     os.remove(invocation_file)
 
     return (out_key, exec_result)
