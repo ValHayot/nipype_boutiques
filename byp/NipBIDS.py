@@ -48,7 +48,7 @@ class NipBIDS(Sim):
 
 
 
-            p_analysis = MapNode(Function(input_names=['nib', 'analysis_level', 
+            p_analysis = MapNode(Function(input_names=['nip', 'analysis_level', 
                                       'participant_label','working_dir'],
                                       output_names=['result'],
                                       function=run_analysis),
@@ -59,20 +59,20 @@ class NipBIDS(Sim):
             wf.connect(participants, 'out', p_analysis, 'participant_label')
             
             p_analysis.inputs.analysis_level = 'participant'
-            p_analysis.inputs.nib = self
+            p_analysis.inputs.nip = self
             p_analysis.inputs.working_dir = os.getcwd()
 
 
         # Group analysis
         if self.do_group_analysis:
-            groups = Node(Function(input_names=['nib', 'analysis_level', 'bids_dataset', 
+            groups = Node(Function(input_names=['nip', 'analysis_level', 
                                 'working_dir', 'dummy_token'],
                                 output_names=['g_result'],
                                 function=run_analysis),
                                 name='run_group_analysis')
 
             groups.inputs.analysis_level = 'group'
-            groups.inputs.nib = self
+            groups.inputs.nip = self
             groups.inputs.working_dir = os.getcwd()
 
         
@@ -104,7 +104,7 @@ class NipBIDS(Sim):
         assert(analysis_level_input.get("value-choices")),"Input 'analysis_level' of BIDS app descriptor has no 'value-choices' property"   
         return level in analysis_level_input["value-choices"]
 
-def run_analysis(nib, analysis_level, working_dir, participant_label=None, dummy_token=None):
+def run_analysis(nip, analysis_level, working_dir, participant_label=None, dummy_token=None):
     import os
 
     out_key = None
@@ -116,8 +116,8 @@ def run_analysis(nib, analysis_level, working_dir, participant_label=None, dummy
         invocation_file = "./invocation-{0}.json".format(participant_label)
         out_key = "participant_label"
 
-    nib.write_invocation_file(analysis_level, participant_label, invocation_file)
-    exec_result = nib.bosh_exec(invocation_file, working_dir)
+    nip.write_invocation_file(analysis_level, participant_label, invocation_file)
+    exec_result = nip.bosh_exec(invocation_file, working_dir)
     os.remove(invocation_file)
 
     return (out_key, exec_result)
