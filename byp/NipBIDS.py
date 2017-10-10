@@ -7,7 +7,9 @@ class NipBIDS(Sim):
 
     def __init__(self, boutiques_descriptor, bids_dataset, output_dir, options={}):
      
-        super().__init__(os.path.abspath(boutiques_descriptor), bids_dataset, output_dir)
+        super().__init__(os.path.abspath(boutiques_descriptor),
+                         os.path.abspath(bids_dataset),
+                         os.path.abspath(output_dir))
         
         # Includes: skip_participant_analysis,
         # skip_group_analysis, skip_participants_file
@@ -18,8 +20,9 @@ class NipBIDS(Sim):
                                                             and not self.skip_participant_analysis
         self.do_group_analysis = self.supports_analysis_level("group") \
                                                  and not self.skip_group_analysis
-        self.skipped_participants = self.skip_participants_file.read().split() if self.skip_participants_file else []
+        self.skipped_participants = open(self.skip_participants_file, "r").read().split() if self.skip_participants_file else []
 
+        
         # Print analysis summary
         print("Computed Analyses: Participant [ {0} ] - Group [ {1} ]".format(str(self.do_participant_analysis).upper(),
                                                                               str(self.do_group_analysis).upper()))
@@ -39,12 +42,11 @@ class NipBIDS(Sim):
         # Participant analysis
         if self.do_participant_analysis:
 
-            participants = Node(Function(input_names=['data_dir', 'skipped'],
+            participants = Node(Function(input_names=['nip'],
                                             output_names=['out'],
                                             function=get_participants),
                                     name='get_participants')
-            participants.inputs.data_dir = self.input_path
-            participants.inputs.skipped = self.skipped_participants
+            participants.inputs.nip = self
 
 
 
@@ -124,11 +126,11 @@ def run_analysis(nip, analysis_level, working_dir, participant_label=None, dummy
 
 
 
-def get_participants(data_dir, skipped):
+def get_participants(nip):
 
     from bids.grabbids import BIDSLayout
 
-    layout = BIDSLayout(data_dir)
+    layout = BIDSLayout(nip.input_path)
     participants = layout.get_subjects()    
     
-    return list(set(participants) - set(skipped))
+    return list(set(participants) - set(nip.skipped_participants))
