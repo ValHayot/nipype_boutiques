@@ -18,11 +18,11 @@ class TestNip(TestCase):
       millitime = int(time.time()*1000)
       if not output_name:
          output_name = "output"+str(random.SystemRandom().randint(0,int(millitime)))
-      command = ["python3", os.path.join(self.get_nip_dir()
-                                                    ,"nip_bids.py"),
-                                       self.get_json_descriptor(),
-                                       os.path.join(self.get_demo_dir(),"ds001"),
-                                       output_name]
+      command = [os.path.join(self.get_nip_dir(),
+                                "nip_bids.py"),
+                                self.get_json_descriptor(),
+                                os.path.join(self.get_demo_dir(),"ds001"),
+                                output_name]
       for option in options:
          command.append(option)
       try:

@@ -7,7 +7,7 @@ class NipBIDS(Sim):
 
     def __init__(self, boutiques_descriptor, bids_dataset, output_dir, options={}):
      
-        super().__init__(os.path.abspath(boutiques_descriptor),
+        super(NipBIDS, self).__init__(os.path.abspath(boutiques_descriptor),
                          os.path.abspath(bids_dataset),
                          os.path.abspath(output_dir))
         
@@ -84,16 +84,19 @@ class NipBIDS(Sim):
                 wf.add_nodes([groups])
             
         eg = wf.run()
-        
+
+       
+        # Convert to dictionary to more easily extract results 
+        node_names = [i.name for i in eg.nodes()]
+        result_dict = dict(zip(node_names, eg.nodes()))
+
         if self.do_participant_analysis:        
-            for res in eg.nodes()[1].result.outputs.result:
+            for res in result_dict['run_participant_analysis'].result.outputs.get('result'):
                 self.pretty_print(res)
 
-        if self.do_group_analysis and self.do_participant_analysis:
-            self.pretty_print(eg.nodes()[2].result.outputs.g_result)
-        elif self.do_group_analysis:
-            self.pretty_print(eg.nodes()[0].result.outputs.g_result)
-
+        if self.do_group_analysis:
+            self.pretty_print(result_dict['run_group_analysis'].result.outputs.g_result)
+        
             
     def supports_analysis_level(self,level):
         desc = json.load(open(self.boutiques_descriptor))
